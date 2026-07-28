@@ -1,0 +1,153 @@
+diff --git a/crazyflie/pixi.toml b/crazyflie/pixi.toml
+new file mode 100644
+index 0000000..b563a52
+--- /dev/null
++++ b/crazyflie/pixi.toml
+@@ -0,0 +1,24 @@
++[package]
++name = "crazyflie"
++version = "1.0.5"
++
++[package.build]
++backend = { name = "pixi-build-ros", version = "==0.4.1" }
++
++[package.build.config]
++distro = "jazzy"
++extra-package-mappings = [{
++  crazyflie_interfaces = { conda = [] },
++  crazyflie_description = { conda = [] },
++  motion_capture_tracking_interfaces = { conda = [] },
++  "libusb-1.0-dev" = { conda = ["libusb"] },
++}]
++
++[package.host-dependencies]
++crazyflie_interfaces = { path = "../crazyflie_interfaces" }
++motion_capture_tracking_interfaces = { path = "../../motion_capture_tracking/motion_capture_tracking_interfaces" }
++
++[package.run-dependencies]
++crazyflie_interfaces = { path = "../crazyflie_interfaces" }
++crazyflie_description = { path = "../crazyflie_description" }
++motion_capture_tracking_interfaces = { path = "../../motion_capture_tracking/motion_capture_tracking_interfaces" }
+diff --git a/crazyflie_description/pixi.toml b/crazyflie_description/pixi.toml
+new file mode 100644
+index 0000000..20d16c5
+--- /dev/null
++++ b/crazyflie_description/pixi.toml
+@@ -0,0 +1,9 @@
++[package]
++name = "crazyflie_description"
++version = "1.0.5"
++
++[package.build]
++backend = { name = "pixi-build-ros", version = "==0.4.1" }
++
++[package.build.config]
++distro = "jazzy"
+diff --git a/crazyflie_examples/pixi.toml b/crazyflie_examples/pixi.toml
+new file mode 100644
+index 0000000..50a17a0
+--- /dev/null
++++ b/crazyflie_examples/pixi.toml
+@@ -0,0 +1,16 @@
++[package]
++name = "crazyflie_examples"
++version = "1.0.5"
++
++[package.build]
++backend = { name = "pixi-build-ros", version = "==0.4.1" }
++
++[package.build.config]
++distro = "jazzy"
++extra-package-mappings = [{ crazyflie_py = { conda = [] } }]
++
++[package.host-dependencies]
++crazyflie_py = { path = "../crazyflie_py" }
++
++[package.run-dependencies]
++crazyflie_py = { path = "../crazyflie_py" }
+diff --git a/crazyflie_interfaces/pixi.toml b/crazyflie_interfaces/pixi.toml
+new file mode 100644
+index 0000000..de1b4de
+--- /dev/null
++++ b/crazyflie_interfaces/pixi.toml
+@@ -0,0 +1,9 @@
++[package]
++name = "crazyflie_interfaces"
++version = "1.0.5"
++
++[package.build]
++backend = { name = "pixi-build-ros", version = "==0.4.1" }
++
++[package.build.config]
++distro = "jazzy"
+diff --git a/crazyflie_py/pixi.toml b/crazyflie_py/pixi.toml
+new file mode 100644
+index 0000000..27b1e63
+--- /dev/null
++++ b/crazyflie_py/pixi.toml
+@@ -0,0 +1,16 @@
++[package]
++name = "crazyflie_py"
++version = "1.0.5"
++
++[package.build]
++backend = { name = "pixi-build-ros", version = "==0.4.1" }
++
++[package.build.config]
++distro = "jazzy"
++extra-package-mappings = [{ crazyflie_interfaces = { conda = [] } }]
++
++[package.host-dependencies]
++crazyflie_interfaces = { path = "../crazyflie_interfaces" }
++
++[package.run-dependencies]
++crazyflie_interfaces = { path = "../crazyflie_interfaces" }
+diff --git a/crazyflie_server_py/pixi.toml b/crazyflie_server_py/pixi.toml
+new file mode 100644
+index 0000000..774a7f9
+--- /dev/null
++++ b/crazyflie_server_py/pixi.toml
+@@ -0,0 +1,21 @@
++[package]
++name = "crazyflie_server_py"
++version = "1.0.5"
++
++[package.build]
++backend = { name = "pixi-build-ros", version = "==0.4.1" }
++
++[package.build.config]
++distro = "jazzy"
++extra-package-mappings = [{
++  crazyflie_interfaces = { conda = [] },
++  motion_capture_tracking_interfaces = { conda = [] },
++}]
++
++[package.host-dependencies]
++crazyflie_interfaces = { path = "../crazyflie_interfaces" }
++motion_capture_tracking_interfaces = { path = "../../motion_capture_tracking/motion_capture_tracking_interfaces" }
++
++[package.run-dependencies]
++crazyflie_interfaces = { path = "../crazyflie_interfaces" }
++motion_capture_tracking_interfaces = { path = "../../motion_capture_tracking/motion_capture_tracking_interfaces" }
+diff --git a/crazyflie_sim/pixi.toml b/crazyflie_sim/pixi.toml
+new file mode 100644
+index 0000000..907939d
+--- /dev/null
++++ b/crazyflie_sim/pixi.toml
+@@ -0,0 +1,16 @@
++[package]
++name = "crazyflie_sim"
++version = "1.0.5"
++
++[package.build]
++backend = { name = "pixi-build-ros", version = "==0.4.1" }
++
++[package.build.config]
++distro = "jazzy"
++extra-package-mappings = [{ crazyflie_interfaces = { conda = [] } }]
++
++[package.host-dependencies]
++crazyflie_interfaces = { path = "../crazyflie_interfaces" }
++
++[package.run-dependencies]
++crazyflie_interfaces = { path = "../crazyflie_interfaces" }

@@ -1,0 +1,61 @@
+[workspace]
+preview = ["pixi-build"]
+name = "rewire-crazyflie"
+version = "0.1.0"
+description = "Crazyflie 2.1 Brushless with crazyswarm2, streaming IMU and AI-deck camera to rewire"
+channels = [
+  "https://prefix.dev/pixi-build-backends",
+  "https://prefix.dev/robostack-jazzy",
+  "conda-forge",
+  "https://prefix.dev/rewire",
+]
+platforms = ["osx-arm64", "linux-64"]
+
+# Unlike the synthetic examples in this repo, this one needs real hardware: a Crazyflie
+# 2.1 Brushless, a Crazyradio, and (for the camera) an AI-deck. `pixi run setup` clones
+# crazyswarm2 and applies the patches in patches/. See README.md.
+
+[dependencies]
+crazyflie = { path = "./src/crazyswarm2/crazyflie" }
+crazyflie_py = { path = "./src/crazyswarm2/crazyflie_py" }
+crazyflie_server_py = { path = "./src/crazyswarm2/crazyflie_server_py" }
+ros-jazzy-ros2cli = "*"
+ros-jazzy-ros2launch = "*"
+ros-jazzy-ros2run = "*"
+ros-jazzy-ros2topic = "*"
+ros-jazzy-ros2service = "*"
+ros-jazzy-tf-transformations = "*"
+rewire = "*"
+zenohd = "*"
+
+# Runtime imports that upstream crazyswarm2 does not declare in package.xml, so
+# pixi-build-ros cannot infer them.
+rowan = "*"
+numpy = "*"
+scipy = "*"
+pyyaml = "*"
+# aideck_streamer.py needs cv2 for the Bayer path. Conda build rather than pip
+# opencv-python, which vendors its own Qt and is documented to clash with cfclient.
+py-opencv = "*"
+# cflib 0.1.32 caps packaging<26; the conda solve otherwise pulls 26.x, which silently
+# downgrades cflib to 0.1.17 and fails at runtime with 'no attribute fully_connected'.
+packaging = "<26"
+
+[pypi-dependencies]
+cflib = ">=0.1.32"
+
+[tasks]
+setup = { cmd = "bash scripts/setup.sh", description = "Clone crazyswarm2 + motion_capture_tracking and apply patches/" }
+server = "ros2 launch crazyflie launch.py backend:=cflib mocap:=False teleop:=False crazyflies_yaml_file:=$PIXI_PROJECT_ROOT/config/crazyflies.yaml"
+server-cpp = "ros2 launch crazyflie launch.py backend:=cpp mocap:=False teleop:=False crazyflies_yaml_file:=$PIXI_PROJECT_ROOT/config/crazyflies.yaml"
+camera = "ros2 run crazyflie aideck_streamer.py --ros-args -p config_path:=$PIXI_PROJECT_ROOT/config/aideck_streamer.yaml"
+scan = "ros2 run crazyflie scan"
+viz = "rewire record --all"
+topics = "ros2 topic list"
+
+[environments]
+default = ["jazzy"]
+jazzy = ["jazzy"]
+
+[feature.jazzy]
+channels = ["https://prefix.dev/robostack-jazzy"]

@@ -1,0 +1,18 @@
+# Cloned by `pixi run setup`, reconstructed from patches/
+src/
+
+# Pixi
+.pixi/
+pixi.lock
+
+# Colcon
+build/
+install/
+log/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]

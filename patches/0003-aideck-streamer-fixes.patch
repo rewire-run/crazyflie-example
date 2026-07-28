@@ -1,0 +1,224 @@
+diff --git a/crazyflie/config/aideck_streamer.yaml b/crazyflie/config/aideck_streamer.yaml
+index 280ba91..0ff92e8 100644
+--- a/crazyflie/config/aideck_streamer.yaml
++++ b/crazyflie/config/aideck_streamer.yaml
+@@ -2,29 +2,58 @@ image_topic: /camera/image
+ camera_info_topic: /camera/camera_info
+ deck_ip: "192.168.4.1"
+ deck_port: 5000
++# Measured from the stream header: 324x244, depth=1 (greyscale HM01B0).
++#
++# NOT A CALIBRATION -- a self-consistent placeholder for this resolution, assuming a
++# pinhole camera with zero distortion.
++#   fx, fy  inherited from upstream's 324x324 calibration. Focal length in pixels is a
++#           property of lens and pixel pitch, so a crop does not change it; a rescale
++#           would. Unverified for this lens.
++#   cx, cy  the exact image centre, 324/2 and 244/2. Upstream's cy of 160.79 was the
++#           centre of a 324-tall frame.
++# Implied FOV: ~83 deg horizontal, ~68 deg vertical.
++#
++# Zero distortion is an assumption, not a measurement -- the raw image shows visible
++# barrel distortion. Run camera_calibration with a checkerboard at 324x244 before
++# trusting rectification, projection, or anything visual-odometry-shaped.
+ image_width: 324
+-image_height: 324
+-camera_name: crazyflie
++image_height: 244
++# Optical frame of the camera, published as a static transform from camera_parent_frame.
++# The crazyswarm2 server broadcasts world -> cf1, so this hangs the camera off the drone.
++camera_name: cf1/camera
++camera_parent_frame: cf1
++
++# ESTIMATE -- NOT MEASURED. Offset of the camera from the drone origin, in the ROS body
++# frame (x forward, y left, z up), metres. The AI deck here is mounted on top, so z is
++# positive; measure the real values before using this for anything geometric.
++camera_translation: [0.03, 0.0, 0.02]
++
++# Body -> optical convention (REP-103): body is x-forward/y-left/z-up, optical is
++# x-right/y-down/z-forward. As roll, pitch, yaw in radians. Add any extra mounting
++# rotation (e.g. a downward tilt) on top of these.
++camera_rotation_rpy: [-1.5707963, 0.0, -1.5707963]
+ camera_matrix:
+   rows: 3
+   cols: 3
+-  data: [181.87464,   0.     , 162.52301,
+-           0.     , 182.58129, 160.79418,
+-           0.     ,   0.     ,   1.     ]
++  data: [181.87464,   0.     , 162.0,
++           0.     , 182.58129, 122.0,
++           0.     ,   0.     ,   1.  ]
+ distortion_model: plumb_bob
+ distortion_coefficients:
+   rows: 1
+   cols: 5
+-  data: [-0.070366, -0.006434, -0.002691, -0.001983, 0.000000]
++  data: [0.0, 0.0, 0.0, 0.0, 0.0]
+ rectification_matrix:
+   rows: 3
+   cols: 3
+   data: [1., 0., 0.,
+          0., 1., 0.,
+          0., 0., 1.]
++# With zero distortion and identity rectification, P is just K with a zero column --
++# the rectified camera is the original camera.
+ projection_matrix:
+   rows: 3
+   cols: 4
+-  data: [169.24555,   0.     , 161.54541,   0.     ,
+-           0.     , 169.97813, 159.07974,   0.     ,
+-           0.     ,   0.     ,   1.     ,   0.     ]
+\ No newline at end of file
++  data: [181.87464,   0.     , 162.0,   0.,
++           0.     , 182.58129, 122.0,   0.,
++           0.     ,   0.     ,   1.  ,   0.]
+\ No newline at end of file
+diff --git a/crazyflie/scripts/aideck_streamer.py b/crazyflie/scripts/aideck_streamer.py
+index c97df29..53cc334 100755
+--- a/crazyflie/scripts/aideck_streamer.py
++++ b/crazyflie/scripts/aideck_streamer.py
+@@ -1,5 +1,6 @@
+ #!/usr/bin/env python3
+ import socket,os,struct, time
++import traceback
+ import numpy as np
+ import cv2
+ import yaml
+@@ -11,6 +12,9 @@ from rclpy.node import Node
+ from sensor_msgs.msg import Image, CameraInfo
+ 
+ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
++from geometry_msgs.msg import TransformStamped
++from tf2_ros import StaticTransformBroadcaster
++from tf_transformations import quaternion_from_euler
+ 
+ 
+ class ImageStreamerNode(Node):
+@@ -85,16 +89,56 @@ class ImageStreamerNode(Node):
+         self.get_logger().info("Connecting to socket on {}:{}...".format(deck_ip, deck_port))
+         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+         self.client_socket.connect((deck_ip, deck_port))
++        # Frames arrive every ~125 ms, so a 5 s gap means the deck accepted the
++        # connection but is not serving it -- usually because another client already
++        # holds its single slot. Without this the node blocks in recv() forever with no
++        # indication of why nothing is published.
++        self.client_socket.settimeout(5.0)
+         self.get_logger().info("Socket connected")
+         self.image = None
+         self.rx_buffer = bytearray()
+ 
+-        # set up timers for callbacks
++        self._broadcast_camera_transform(config)
++
++        # Only a receive timer. publish_callback used to be a second timer in the same
++        # mutually-exclusive callback group: receiving blocks for ~135 ms, so both timers
++        # accumulated missed triggers and the executor could run receive twice in a row,
++        # overwriting self.image before it was ever published. That silently dropped
++        # roughly a third of the frames. Publishing from the receive path instead means
++        # one frame in, one frame out.
+         timer_period = 0.01
+         self.rx_timer = self.create_timer(timer_period, self.receive_callback)
+-        self.tx_timer = self.create_timer(timer_period, self.publish_callback)
+ 
+ 
++    def _broadcast_camera_transform(self, config):
++        """Anchor the camera frame to the drone so the image has a pose in TF."""
++        parent = config.get('camera_parent_frame')
++        if not parent:
++            self.get_logger().warn(
++                'no camera_parent_frame configured; the camera frame will be unanchored'
++            )
++            return
++
++        translation = config.get('camera_translation', [0.0, 0.0, 0.0])
++        roll, pitch, yaw = config.get('camera_rotation_rpy', [0.0, 0.0, 0.0])
++        q = quaternion_from_euler(roll, pitch, yaw)
++
++        t = TransformStamped()
++        t.header.stamp = self.get_clock().now().to_msg()
++        t.header.frame_id = parent
++        t.child_frame_id = config['camera_name']
++        t.transform.translation.x = float(translation[0])
++        t.transform.translation.y = float(translation[1])
++        t.transform.translation.z = float(translation[2])
++        t.transform.rotation.x = float(q[0])
++        t.transform.rotation.y = float(q[1])
++        t.transform.rotation.z = float(q[2])
++        t.transform.rotation.w = float(q[3])
++
++        self.static_tfbr = StaticTransformBroadcaster(self)
++        self.static_tfbr.sendTransform(t)
++        self.get_logger().info(f"Static transform {parent} -> {config['camera_name']}")
++
+     def _construct_from_yaml(self, config):
+         camera_info = CameraInfo()
+ 
+@@ -116,6 +160,20 @@ class ImageStreamerNode(Node):
+         return data
+ 
+     def receive_callback(self):
++        # An exception in a timer callback is otherwise invisible: the topics stay
++        # advertised and nothing is ever published, with no message anywhere.
++        try:
++            self._receive_frame()
++        except socket.timeout:
++            self.get_logger().error(
++                'connected to the deck but received no data for 5s. The GAP8 serves one '
++                'client at a time -- check nothing else is connected, and power-cycle '
++                'the Crazyflie if this persists.'
++            )
++        except Exception:
++            self.get_logger().error(f'receive_callback failed:\n{traceback.format_exc()}')
++
++    def _receive_frame(self):
+         # first get the info
+         packetInfoRaw = self._rx_bytes(4)
+         [length, routing, function] = struct.unpack('<HBB', packetInfoRaw)
+@@ -135,19 +193,43 @@ class ImageStreamerNode(Node):
+                 chunk = self._rx_bytes(length - 2)
+                 imgStream.extend(chunk)
+ 
+-            raw_img = np.frombuffer(imgStream, dtype=np.uint8)
+-            raw_img.shape = (width, height)
+-            self.image = cv2.cvtColor(raw_img, cv2.COLOR_BayerBG2RGBA)
++            # The loop above extends by whole chunks, so the buffer can overshoot the
++            # frame size; reshape is exact and would raise. Upstream has this too.
++            if len(imgStream) != size:
++                self.get_logger().warn(
++                    f'frame is {len(imgStream)} bytes, expected {size}; trimming'
++                )
++                imgStream = imgStream[:size]
++
++            # numpy is (rows, cols) == (height, width). Note 324*244 == 244*324, so a
++            # transposed shape is accepted silently and yields a sheared image.
++            raw_img = np.frombuffer(imgStream, dtype=np.uint8).reshape(height, width)
++
++            # depth is bytes per pixel: 1 means the greyscale HM01B0, anything else is
++            # the Bayer colour variant. Publish mono straight through -- expanding it to
++            # RGBA quadruples the topic bandwidth and adds nothing.
++            if depth == 1:
++                self.image = raw_img
++            else:
++                self.image = cv2.cvtColor(raw_img, cv2.COLOR_BayerBG2RGBA)
++
++            self.publish_callback()
+ 
+     def publish_callback(self):
+         if self.image is not None:
+             self.image_msg.header.frame_id = self.camera_info_msg.header.frame_id
+             self.image_msg.header.stamp = self.get_clock().now().to_msg()
+             self.camera_info_msg.header.stamp = self.image_msg.header.stamp
+-            width, height, channels = self.image.shape
++            if self.image.ndim == 2:
++                height, width = self.image.shape
++                channels = 1
++                encoding = 'mono8'
++            else:
++                height, width, channels = self.image.shape
++                encoding = 'rgba8'
+             self.image_msg.height = height
+             self.image_msg.width = width
+-            self.image_msg.encoding = 'rgba8'
++            self.image_msg.encoding = encoding
+             self.image_msg.step = width * channels   # number of bytes each row in the array will occupy
+             self.image_msg.is_bigendian = 0 # TODO: implement automatic check depending on system
+             self.image_msg.data = self.image.flatten().data

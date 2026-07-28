@@ -1,0 +1,59 @@
+image_topic: /camera/image
+camera_info_topic: /camera/camera_info
+deck_ip: "192.168.4.1"
+deck_port: 5000
+# Measured from the stream header: 324x244, depth=1 (greyscale HM01B0).
+#
+# NOT A CALIBRATION -- a self-consistent placeholder for this resolution, assuming a
+# pinhole camera with zero distortion.
+#   fx, fy  inherited from upstream's 324x324 calibration. Focal length in pixels is a
+#           property of lens and pixel pitch, so a crop does not change it; a rescale
+#           would. Unverified for this lens.
+#   cx, cy  the exact image centre, 324/2 and 244/2. Upstream's cy of 160.79 was the
+#           centre of a 324-tall frame.
+# Implied FOV: ~83 deg horizontal, ~68 deg vertical.
+#
+# Zero distortion is an assumption, not a measurement -- the raw image shows visible
+# barrel distortion. Run camera_calibration with a checkerboard at 324x244 before
+# trusting rectification, projection, or anything visual-odometry-shaped.
+image_width: 324
+image_height: 244
+# Optical frame of the camera, published as a static transform from camera_parent_frame.
+# The crazyswarm2 server broadcasts world -> cf1, so this hangs the camera off the drone.
+camera_name: cf1/camera
+camera_parent_frame: cf1
+
+# ESTIMATE -- NOT MEASURED. Offset of the camera from the drone origin, in the ROS body
+# frame (x forward, y left, z up), metres. The AI deck here is mounted on top, so z is
+# positive; measure the real values before using this for anything geometric.
+camera_translation: [0.03, 0.0, 0.02]
+
+# Body -> optical convention (REP-103): body is x-forward/y-left/z-up, optical is
+# x-right/y-down/z-forward. As roll, pitch, yaw in radians. Add any extra mounting
+# rotation (e.g. a downward tilt) on top of these.
+camera_rotation_rpy: [-1.5707963, 0.0, -1.5707963]
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [181.87464,   0.     , 162.0,
+           0.     , 182.58129, 122.0,
+           0.     ,   0.     ,   1.  ]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.0, 0.0, 0.0, 0.0, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1., 0., 0.,
+         0., 1., 0.,
+         0., 0., 1.]
+# With zero distortion and identity rectification, P is just K with a zero column --
+# the rectified camera is the original camera.
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [181.87464,   0.     , 162.0,   0.,
+           0.     , 182.58129, 122.0,   0.,
+           0.     ,   0.     ,   1.  ,   0.]

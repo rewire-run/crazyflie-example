@@ -1,0 +1,186 @@
+diff --git a/crazyflie/src/crazyflie_server.cpp b/crazyflie/src/crazyflie_server.cpp
+index 2a501e7..c0ef96a 100644
+--- a/crazyflie/src/crazyflie_server.cpp
++++ b/crazyflie/src/crazyflie_server.cpp
+@@ -21,6 +21,7 @@
+ #include "geometry_msgs/msg/pose_stamped.hpp"
+ #include "geometry_msgs/msg/transform_stamped.hpp"
+ #include "sensor_msgs/msg/laser_scan.hpp"
++#include "sensor_msgs/msg/imu.hpp"
+ #include "nav_msgs/msg/odometry.hpp"
+ #include "crazyflie_interfaces/srv/upload_trajectory.hpp"
+ #include "motion_capture_tracking_interfaces/msg/named_pose_array.hpp"
+@@ -139,6 +140,15 @@ private:
+   } __attribute__((packed));
+ 
+ 
++  struct logImu {
++    float ax; // acc.x, g
++    float ay; // acc.y, g
++    float az; // acc.z, g
++    float gx; // gyro.x, deg/s
++    float gy; // gyro.y, deg/s
++    float gz; // gyro.z, deg/s
++  } __attribute__((packed));
++
+   struct logStatus {
+     // general status
+     uint16_t supervisorInfo; // supervisor.info
+@@ -531,6 +541,25 @@ public:
+               &cf_,logvars, cb));
+             log_block_status_->start(uint8_t(100.0f / (float)freq)); // this is in tens of milliseconds
+           }
++          else if (i.first.find("default_topics.imu") == 0) {
++            int freq = log_config_map["default_topics.imu.frequency"].get<int>();
++            RCLCPP_INFO(logger_, "[%s] Logging to /imu at %d Hz", name_.c_str(), freq);
++
++            publisher_imu_ = node->create_publisher<sensor_msgs::msg::Imu>(name + "/imu", 10);
++
++            std::function<void(uint32_t, const logImu*)> cb = std::bind(&CrazyflieROS::on_logging_imu, this, std::placeholders::_1, std::placeholders::_2);
++
++            log_block_imu_.reset(new LogBlock<logImu>(
++              &cf_,{
++                {"acc", "x"},
++                {"acc", "y"},
++                {"acc", "z"},
++                {"gyro", "x"},
++                {"gyro", "y"},
++                {"gyro", "z"},
++              }, cb));
++            log_block_imu_->start(uint8_t(100.0f / (float)freq)); // this is in tens of milliseconds
++          }
+           else if (i.first.find("custom_topics") == 0
+                    && i.first.rfind(".vars") != std::string::npos) {
+             std::string topic_name = i.first.substr(14, i.first.size() - 14 - 5);
+@@ -869,6 +898,34 @@ private:
+     }
+   }
+ 
++  void on_logging_imu(uint32_t time_in_ms, const logImu* data) {
++    if (publisher_imu_) {
++      sensor_msgs::msg::Imu msg;
++      msg.header.stamp = node_->get_clock()->now();
++      msg.header.frame_id = name_;
++
++      // Firmware reports acc in g and gyro in deg/s; REP-145 wants m/s^2 and rad/s.
++      constexpr double gravity = 9.80665;
++      constexpr double deg2rad = M_PI / 180.0;
++      msg.linear_acceleration.x = data->ax * gravity;
++      msg.linear_acceleration.y = data->ay * gravity;
++      msg.linear_acceleration.z = data->az * gravity;
++      msg.angular_velocity.x = data->gx * deg2rad;
++      msg.angular_velocity.y = data->gy * deg2rad;
++      msg.angular_velocity.z = data->gz * deg2rad;
++
++      // No orientation in this log block: a firmware log block holds 26 bytes and six
++      // float32 already uses 24, so the attitude estimate does not fit. Per
++      // sensor_msgs/Imu, -1 in element 0 marks the field as not produced.
++      msg.orientation_covariance[0] = -1.0;
++
++      // All-zero covariance means "unknown" to consumers, which is honest until the
++      // noise floor has been characterised for a given airframe.
++
++      publisher_imu_->publish(msg);
++    }
++  }
++
+   void on_logging_scan(uint32_t time_in_ms, const logScan* data) {
+     if (publisher_scan_) {
+       
+@@ -1104,6 +1161,9 @@ private:
+   std::unique_ptr<LogBlock<logStatus>> log_block_status_;
+   bool status_has_radio_stats_;
+   rclcpp::Publisher<crazyflie_interfaces::msg::Status>::SharedPtr publisher_status_;
++
++  std::unique_ptr<LogBlock<logImu>> log_block_imu_;
++  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr publisher_imu_;
+   uint16_t previous_numRxBc;
+   uint16_t previous_numRxUc;
+   bitcraze::crazyflieLinkCpp::Connection::Statistics previous_stats_unicast_;
+diff --git a/crazyflie_server_py/crazyflie_server_py/crazyflie_server.py b/crazyflie_server_py/crazyflie_server_py/crazyflie_server.py
+index 3791086..b739871 100755
+--- a/crazyflie_server_py/crazyflie_server_py/crazyflie_server.py
++++ b/crazyflie_server_py/crazyflie_server_py/crazyflie_server.py
+@@ -37,12 +37,15 @@ import rclpy
+ from rclpy.duration import Duration
+ from rclpy.node import Node
+ from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+-from sensor_msgs.msg import LaserScan
++from sensor_msgs.msg import Imu, LaserScan
+ from std_msgs.msg import String
+ from std_srvs.srv import Empty
+ from tf2_ros import TransformBroadcaster
+ 
+ 
++GRAVITY = 9.80665
++
++
+ def quaternion_from_euler(roll, pitch, yaw):
+     """Convert Euler angles to quaternion [x, y, z, w] (ZYX convention)."""
+     import math
+@@ -113,6 +116,7 @@ class CrazyflieServer(Node):
+             'scan': LaserScan,
+             'odom': Odometry,
+             'status': Status,
++            'imu': Imu,
+         }
+         self.default_log_vars = {
+             'pose': [
+@@ -139,12 +143,21 @@ class CrazyflieServer(Node):
+                 'gyro.y',
+             ],
+             'status': ['supervisor.info', 'pm.vbatMV', 'pm.state', 'radio.rssi'],
++            'imu': [
++                'acc.x',
++                'acc.y',
++                'acc.z',
++                'gyro.x',
++                'gyro.y',
++                'gyro.z',
++            ],
+         }
+         self.default_log_fnc = {
+             'pose': self._log_pose_data_callback,
+             'scan': self._log_scan_data_callback,
+             'odom': self._log_odom_data_callback,
+             'status': self._log_status_data_callback,
++            'imu': self._log_imu_data_callback,
+         }
+ 
+         world_tf_name = 'world'
+@@ -706,6 +719,35 @@ class CrazyflieServer(Node):
+         except Exception:
+             self.get_logger().info('Could not publish pose tf')
+ 
++    def _log_imu_data_callback(self, timestamp, data, logconf, uri):
++        """Publish IMU data retrieved from the Crazyflie."""
++        cf_name = self.cf_dict[uri]
++
++        msg = Imu()
++        msg.header.stamp = self.get_clock().now().to_msg()
++        msg.header.frame_id = cf_name
++
++        # Firmware reports acc in g and gyro in deg/s; REP-145 wants m/s^2 and rad/s.
++        msg.linear_acceleration.x = data.get('acc.x') * GRAVITY
++        msg.linear_acceleration.y = data.get('acc.y') * GRAVITY
++        msg.linear_acceleration.z = data.get('acc.z') * GRAVITY
++        msg.angular_velocity.x = radians(data.get('gyro.x'))
++        msg.angular_velocity.y = radians(data.get('gyro.y'))
++        msg.angular_velocity.z = radians(data.get('gyro.z'))
++
++        # No orientation in this log block: a firmware log block holds 26 bytes and
++        # six float32 already uses 24, so the attitude estimate does not fit. Per
++        # sensor_msgs/Imu, -1 in element 0 marks the field as not produced.
++        msg.orientation_covariance[0] = -1.0
++
++        # All-zero covariance means "unknown" to consumers, which is honest until the
++        # noise floor has been characterised for a given airframe.
++
++        try:
++            self.swarm._cfs[uri].logging['imu_publisher'].publish(msg)
++        except Exception:
++            self.get_logger().info('Could not publish imu message, stopping imu log')
++
+     def _log_odom_data_callback(self, timestamp, data, logconf, uri):
+         """Publish odometry data retrieved from the Crazyflie."""
+         cf_name = self.cf_dict[uri]

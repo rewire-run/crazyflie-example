@@ -1,0 +1,58 @@
+diff --git a/crazyflie/CMakeLists.txt b/crazyflie/CMakeLists.txt
+index fdc1c51..1e4dfec 100644
+--- a/crazyflie/CMakeLists.txt
++++ b/crazyflie/CMakeLists.txt
+@@ -27,6 +27,12 @@ else()
+   set(ROS_DISTRO_VALUE "unknown_distro") # Or an empty string, or "NO_ROS_DISTRO_SET"
+ endif()
+ 
++# crazyflie-link-cpp ships a Findlibusb.cmake whose macOS branch searches only for a
++# static libusb-1.0.a, which conda-forge does not provide. Seed its cache variables so
++# the shared library from the active prefix is picked up instead.
++find_library(LIBUSB_LIBRARY NAMES usb-1.0 libusb-1.0)
++find_path(LIBUSB_INCLUDE_DIR NAMES libusb.h PATH_SUFFIXES libusb-1.0)
++
+ # add dependencies
+ add_subdirectory(deps/crazyflie_tools)
+ # add_subdirectory(externalDependencies/libmotioncapture)
+@@ -43,8 +49,11 @@ include_directories(
+ add_executable(teleop 
+   src/teleop.cpp
+ )
+-target_link_libraries(teleop 
++target_link_libraries(teleop
+   rclcpp::rclcpp
++  # conda-forge's Eigen3 config exports only the imported target, not the
++  # EIGEN3_INCLUDE_DIRS variable that ament's eigen3_cmake_module provides.
++  Eigen3::Eigen
+   ${sensor_msgs_TARGETS}
+   ${std_srvs_TARGETS}
+   ${crazyflie_interfaces_TARGETS}
+@@ -61,7 +70,12 @@ endif()
+ 
+ target_link_libraries(crazyflie_server
+   crazyflie_cpp
++  # crazyflie_cpp links crazyflieLinkCpp PRIVATE, but header-inlined code
++  # (LogBlockGeneric, setParamByName) calls into it from this translation unit,
++  # and macOS ld64 does not resolve shared-library dependencies transitively.
++  crazyflieLinkCpp
+   rclcpp::rclcpp
++  Eigen3::Eigen
+   tf2_ros::tf2_ros
+   ${sensor_msgs_TARGETS}
+   ${nav_msgs_TARGETS}
+@@ -100,6 +114,14 @@ install(TARGETS
+   crazyflie_server
+   DESTINATION lib/${PROJECT_NAME})
+ 
++# These come from deps/crazyflie_tools and live only in the build tree, which is
++# discarded when the package is installed. A colcon dev build gets away with it
++# because the build tree stays around; an installed/packaged build does not.
++install(TARGETS
++  crazyflie_cpp
++  crazyflieLinkCpp
++  DESTINATION lib)
++
+ # Install Python executables
+ install(PROGRAMS
+   scripts/chooser.py

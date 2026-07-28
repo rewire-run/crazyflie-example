@@ -1,0 +1,15 @@
+diff --git a/motion_capture_tracking_interfaces/pixi.toml b/motion_capture_tracking_interfaces/pixi.toml
+new file mode 100644
+index 0000000..e359d5a
+--- /dev/null
++++ b/motion_capture_tracking_interfaces/pixi.toml
+@@ -0,0 +1,9 @@
++[package]
++name = "motion_capture_tracking_interfaces"
++version = "1.0.9"
++
++[package.build]
++backend = { name = "pixi-build-ros", version = "==0.4.1" }
++
++[package.build.config]
++distro = "jazzy"

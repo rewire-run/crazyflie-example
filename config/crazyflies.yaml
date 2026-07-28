@@ -1,0 +1,56 @@
+# Single Crazyflie 2.1 Brushless.
+# Kept outside src/crazyswarm2 so upstream stays pullable; selected via the
+# crazyflies_yaml_file launch argument (see the pixi tasks in ../pixi.toml).
+fileversion: 3
+
+robots:
+  cf1:
+    enabled: true
+    # Factory default address. Confirm with `ros2 run crazyflie scan` or the
+    # cfclient if you have re-addressed the drone.
+    uri: radio://0/80/2M/E7E7E7E7E7
+    initial_position: [0.0, 0.0, 0.0]
+    type: cf21bl
+
+robot_types:
+  cf21bl:
+    motion_capture:
+      tracking: "librigidbodytracker"
+      marker: default_single_marker
+      dynamics: default
+    big_quad: false
+    battery:
+      # NOTE: these are the upstream cf21 (brushed) thresholds. Verify against
+      # the pack you fly on the Brushless before trusting the low-battery warning.
+      voltage_warning: 3.8   # V
+      voltage_critical: 3.7  # V
+
+all:
+  firmware_logging:
+    enabled: true
+    default_topics:
+      pose:
+        frequency: 10
+      status:
+        frequency: 1
+      # imu is a local addition to crazyswarm2 (see patches/): publishes
+      # sensor_msgs/Imu, converted to m/s^2 and rad/s. Orientation is not included --
+      # a log block holds 26 bytes and six float32 already uses 24.
+      imu:
+        frequency: 50
+  firmware_params:
+    commander:
+      enHighLevel: 1
+    stabilizer:
+      # NO POSITIONING DECK IS ATTACHED (verified via `listParams`: only deck.bcAI=1).
+      # With no position reference the Kalman estimator (2) diverges -- /cf1/pose was
+      # reading tens of metres on a stationary desk. Complementary (1) gives attitude
+      # only, which is what this hardware can actually support.
+      #
+      # Position control -- takeoff / land / go_to / cmd_position, and cmd_hover
+      # (needs z from a ranger) -- WILL NOT WORK SAFELY without one of:
+      #   Flow deck v2 / Lighthouse / Loco (UWB) / motion capture.
+      # Until then the only trustworthy input is cmd_vel_legacy (roll/pitch/yawrate/thrust).
+      # After fitting a positioning deck, set this back to 2.
+      estimator: 1   # 1 = complementary, 2 = kalman
+      controller: 1  # 1 = PID
