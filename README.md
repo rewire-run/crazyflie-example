@@ -10,10 +10,9 @@
   </a>
 </p>
 
-A Crazyflie 2.1 Brushless streaming IMU and AI-deck camera to [rewire](https://github.com/rewire-run/rewire),
-via a patched [crazyswarm2](https://github.com/IMRCLab/crazyswarm2).
+A Crazyflie 2.1 Brushless streaming IMU and AI-deck camera to [rewire](https://github.com/rewire-run/rewire), via a patched [crazyswarm2](https://github.com/IMRCLab/crazyswarm2). 
 
-Real hardware: a Crazyflie 2.1 Brushless, a Crazyradio, and — for the camera — an AI-deck 1.1.
+> Real hardware: a Crazyflie 2.1 Brushless, a Crazyradio, and — for the camera — an AI-deck 1.1.
 
 ## Topics
 
@@ -32,8 +31,6 @@ Real hardware: a Crazyflie 2.1 Brushless, a Crazyradio, and — for the camera �
 pixi run setup     # clone crazyswarm2 + motion_capture_tracking at pinned SHAs, apply patches/
 pixi install
 ```
-
-Jazzy only.
 
 ## Usage
 
@@ -70,23 +67,16 @@ first and verify the change actually reached the env.
 | `0003-aideck-streamer-fixes` | `reshape(width, height)` was transposed, and since 324×244 == 244×324 numpy accepted it silently and sheared the image. Bayer demosaic was applied to greyscale data. `image_height` said 324 where the HM01B0 is 244. Publishes `mono8` rather than inflating 4× to RGBA. Broadcasts the camera's static transform. Publishes on receive instead of from a second timer, which was dropping ~⅓ of frames |
 | `0004`, `0005` | Per-package `pixi.toml` — upstream ships none |
 
-2 and 3 are upstreamable; 1 is macOS-specific; 4 and 5 exist only because this builds with
-pixi-build-ros.
-
 ## Gotchas
 
 - **The GAP8 serves one TCP client.** Probing the port with `nc` first can leave the deck unwilling
   to serve the streamer. Let the node connect first.
-- **`cfloader` ships with cfclient, not cflib** — and cfclient must live in a separate venv, since
-  `opencv-python` clashes with it and this env needs opencv.
 - **macOS drifts back to a network with internet**, silently dropping the deck's AP. Check
   `ifconfig en0 | grep "inet "` for `192.168.4.x`.
 - **`cflib` 0.1.32 caps `packaging<26`.** Without the pin the solve takes 26.x, silently downgrades
   cflib to 0.1.17, and fails at runtime with `'Crazyflie' object has no attribute 'fully_connected'`.
 
-For AI-deck firmware flashing, follow
-[Bitcraze's guide](https://www.bitcraze.io/documentation/tutorials/getting-started-with-aideck/) —
-use the `_with_ap` binary so the deck broadcasts its own access point.
+For AI-deck firmware flashing, follow [Bitcraze's guide](https://www.bitcraze.io/documentation/tutorials/getting-started-with-aideck/) — use the `_with_ap` binary so the deck broadcasts its own access point.
 
 ## Limitations
 
