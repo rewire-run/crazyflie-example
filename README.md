@@ -18,7 +18,7 @@ A Crazyflie 2.1 Brushless streaming IMU and AI-deck camera to [rewire](https://g
 
 | Topic | Type | Rate | |
 |---|---|---|---|
-| `/cf1/imu` | `sensor_msgs/Imu` | 50 Hz | Added by patch; upstream has no IMU topic |
+| `/cf1/imu` | `sensor_msgs/Imu` | 50 Hz | No orientation: a firmware log block holds 26 bytes and six `float32` uses 24 |
 | `/cf1/pose` | `geometry_msgs/PoseStamped` | 10 Hz | Orientation valid, **position is not** |
 | `/cf1/status` | `crazyflie_interfaces/Status` | 1 Hz | |
 | `/camera/image` | `sensor_msgs/Image` | ~8 Hz | 324x244 `mono8`, over WiFi not the radio |
@@ -63,7 +63,6 @@ first and verify the change actually reached the env.
 | Patch | |
 |---|---|
 | `0001-macos-build-fixes` | crazyflie-link-cpp's `Findlibusb.cmake` demands a static `libusb-1.0.a` on macOS, which conda-forge does not ship. conda's Eigen3 exports only the imported target, not `EIGEN3_INCLUDE_DIRS`. `crazyflie_cpp` and `crazyflieLinkCpp` were built but never installed, so the binaries dangled once the build tree went away |
-| `0002-imu-default-topic` | Adds `imu` as a fifth `default_topic`, both backends (plus docs + commented example). No orientation: a firmware log block holds 26 bytes and six `float32` uses 24, so the attitude estimate does not fit — hence `orientation_covariance[0] = -1` |
 | `0003-aideck-streamer-fixes` | `reshape(width, height)` was transposed, and since 324×244 == 244×324 numpy accepted it silently and sheared the image. Bayer demosaic was applied to greyscale data. `image_height` said 324 where the HM01B0 is 244. Publishes `mono8` rather than inflating 4× to RGBA. Broadcasts the camera's static transform. Publishes on receive instead of from a second timer, which was dropping ~⅓ of frames |
 | `0004`, `0005` | Per-package `pixi.toml` — upstream ships none |
 

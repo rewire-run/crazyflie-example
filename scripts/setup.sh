@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
 
-CRAZYSWARM2_SHA=f6154e2d51791a41e6f320c1ee166f782be02a20
+CRAZYSWARM2_SHA=2b020fc0750efc07cd75fea034118b7206505082
 MCT_SHA=64d3af2456e534cd5e587b98ef2f15dd8ad35e8c
 
 mkdir -p src

@@ -30,8 +30,10 @@ zenohd = "*"
 
 # Runtime imports that upstream crazyswarm2 does not declare in package.xml, so
 # pixi-build-ros cannot infer them.
-rowan = "*"
-numpy = "*"
+# crazyflie_server.py imports tf2_ros, which lives in tf2_ros_py, not the C++ package.
+ros-jazzy-tf2-ros-py = "*"
+# cfclient 2026.8.1 requires numpy<2.5.
+numpy = "<2.5"
 scipy = "*"
 pyyaml = "*"
 # aideck_streamer.py needs cv2 for the Bayer path. Conda build rather than pip
@@ -43,6 +45,7 @@ packaging = "<26"
 
 [pypi-dependencies]
 cflib = ">=0.1.32"
+cfclient = ">=2026.8.1, <2027"
 
 [tasks]
 setup = { cmd = "bash scripts/setup.sh", description = "Clone crazyswarm2 + motion_capture_tracking and apply patches/" }

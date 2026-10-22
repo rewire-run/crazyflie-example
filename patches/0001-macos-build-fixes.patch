@@ -1,8 +1,8 @@
 diff --git a/crazyflie/CMakeLists.txt b/crazyflie/CMakeLists.txt
-index fdc1c51..1e4dfec 100644
+index fdc1c51..bb60794 100644
 --- a/crazyflie/CMakeLists.txt
 +++ b/crazyflie/CMakeLists.txt
-@@ -27,6 +27,12 @@ else()
+@@ -27,6 +27,16 @@ else()
    set(ROS_DISTRO_VALUE "unknown_distro") # Or an empty string, or "NO_ROS_DISTRO_SET"
  endif()
  
@@ -12,10 +12,14 @@ index fdc1c51..1e4dfec 100644
 +find_library(LIBUSB_LIBRARY NAMES usb-1.0 libusb-1.0)
 +find_path(LIBUSB_INCLUDE_DIR NAMES libusb.h PATH_SUFFIXES libusb-1.0)
 +
++# Jazzy's rosidl_runtime_cpp/traits.hpp uses std::wstring_convert but includes only
++# <codecvt>; libc++ 23 no longer reaches <locale> transitively.
++add_compile_definitions(_LIBCPP_KEEP_TRANSITIVE_INCLUDES_LLVM23)
++
  # add dependencies
  add_subdirectory(deps/crazyflie_tools)
  # add_subdirectory(externalDependencies/libmotioncapture)
-@@ -43,8 +49,11 @@ include_directories(
+@@ -43,8 +53,11 @@ include_directories(
  add_executable(teleop 
    src/teleop.cpp
  )
@@ -28,7 +32,7 @@ index fdc1c51..1e4dfec 100644
    ${sensor_msgs_TARGETS}
    ${std_srvs_TARGETS}
    ${crazyflie_interfaces_TARGETS}
-@@ -61,7 +70,12 @@ endif()
+@@ -61,7 +74,12 @@ endif()
  
  target_link_libraries(crazyflie_server
    crazyflie_cpp
@@ -41,7 +45,7 @@ index fdc1c51..1e4dfec 100644
    tf2_ros::tf2_ros
    ${sensor_msgs_TARGETS}
    ${nav_msgs_TARGETS}
-@@ -100,6 +114,14 @@ install(TARGETS
+@@ -100,6 +118,14 @@ install(TARGETS
    crazyflie_server
    DESTINATION lib/${PROJECT_NAME})
  

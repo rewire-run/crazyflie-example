@@ -33,8 +33,7 @@ all:
         frequency: 10
       status:
         frequency: 1
-      # imu is a local addition to crazyswarm2 (see patches/): publishes
-      # sensor_msgs/Imu, converted to m/s^2 and rad/s. Orientation is not included --
+      # imu publishes sensor_msgs/Imu in m/s^2 and rad/s. Orientation is not included --
       # a log block holds 26 bytes and six float32 already uses 24.
       imu:
         frequency: 50

@@ -9,7 +9,7 @@ index 0000000..b563a52
 +version = "1.0.5"
 +
 +[package.build]
-+backend = { name = "pixi-build-ros", version = "==0.4.1" }
++backend = { name = "pixi-build-ros", version = "==0.7.6" }
 +
 +[package.build.config]
 +distro = "jazzy"
@@ -39,7 +39,7 @@ index 0000000..20d16c5
 +version = "1.0.5"
 +
 +[package.build]
-+backend = { name = "pixi-build-ros", version = "==0.4.1" }
++backend = { name = "pixi-build-ros", version = "==0.7.6" }
 +
 +[package.build.config]
 +distro = "jazzy"
@@ -54,7 +54,7 @@ index 0000000..50a17a0
 +version = "1.0.5"
 +
 +[package.build]
-+backend = { name = "pixi-build-ros", version = "==0.4.1" }
++backend = { name = "pixi-build-ros", version = "==0.7.6" }
 +
 +[package.build.config]
 +distro = "jazzy"
@@ -76,7 +76,7 @@ index 0000000..de1b4de
 +version = "1.0.5"
 +
 +[package.build]
-+backend = { name = "pixi-build-ros", version = "==0.4.1" }
++backend = { name = "pixi-build-ros", version = "==0.7.6" }
 +
 +[package.build.config]
 +distro = "jazzy"
@@ -91,7 +91,7 @@ index 0000000..27b1e63
 +version = "1.0.5"
 +
 +[package.build]
-+backend = { name = "pixi-build-ros", version = "==0.4.1" }
++backend = { name = "pixi-build-ros", version = "==0.7.6" }
 +
 +[package.build.config]
 +distro = "jazzy"
@@ -113,7 +113,7 @@ index 0000000..774a7f9
 +version = "1.0.5"
 +
 +[package.build]
-+backend = { name = "pixi-build-ros", version = "==0.4.1" }
++backend = { name = "pixi-build-ros", version = "==0.7.6" }
 +
 +[package.build.config]
 +distro = "jazzy"
@@ -140,7 +140,7 @@ index 0000000..907939d
 +version = "1.0.5"
 +
 +[package.build]
-+backend = { name = "pixi-build-ros", version = "==0.4.1" }
++backend = { name = "pixi-build-ros", version = "==0.7.6" }
 +
 +[package.build.config]
 +distro = "jazzy"
