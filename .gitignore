@@ -16,3 +16,6 @@ log/
 # Python
 __pycache__/
 *.py[cod]
+
+# Crazyflie
+cache/
